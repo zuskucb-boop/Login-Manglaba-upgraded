@@ -104,7 +104,7 @@
             android:textAllCaps="false"
             android:backgroundTint="#4E73B8"/>
 
-        <!-- Back to Login -->
+
         <TextView
             android:id="@+id/tvBackToLogin"
             android:layout_width="wrap_content"
