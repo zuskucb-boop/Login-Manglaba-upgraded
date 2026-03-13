@@ -7,6 +7,18 @@
     android:background="#4E73B8"
     tools:context=".LoginActivity">
 
+    <!-- Back Button -->
+    <TextView
+        android:id="@+id/tvBack"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="← Back"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:layout_marginTop="20dp"
+        android:layout_marginStart="20dp"
+        android:padding="10dp"/>
+
     <!-- Title -->
     <TextView
         android:id="@+id/tvTitle"
@@ -31,6 +43,8 @@
         android:padding="20dp"
         android:background="@android:color/white"
         android:elevation="6dp">
+
+
 
         <!-- Email -->
         <EditText
@@ -71,6 +85,16 @@
             android:textColor="#4E73B8"
             android:textSize="13sp"
             android:layout_marginTop="15dp"/>
+
+        <!-- Sign Up Link -->
+        <TextView
+            android:id="@+id/tvSignUp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Don't have an account? Sign Up Here"
+            android:textColor="#4E73B8"
+            android:layout_marginTop="10dp"
+            android:textSize="13sp" />
 
     </LinearLayout>
 
