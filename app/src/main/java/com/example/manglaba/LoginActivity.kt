@@ -17,8 +17,6 @@ class LoginActivity : AppCompatActivity() {
         val etPassword = findViewById<EditText>(R.id.etPassword)
         val btnLogin = findViewById<Button>(R.id.btnLogin)
         val tvForgotPassword = findViewById<TextView>(R.id.tvForgotPassword)
-
-        // NEW: Back button and Sign Up link
         val tvBack = findViewById<TextView>(R.id.tvBack)
         val tvSignUp = findViewById<TextView>(R.id.tvSignUp)
 
@@ -29,10 +27,13 @@ class LoginActivity : AppCompatActivity() {
 
             if (email.isNotEmpty() && password.isNotEmpty()) {
                 Toast.makeText(this, "Login Successful", Toast.LENGTH_SHORT).show()
-                // Go to MainActivity after successful login
-                val intent = Intent(this, MainActivity::class.java)
+
+                // IMPORTANT: This should go to HomeActivity
+                val intent = Intent(this, HomeActivity::class.java)
+                intent.putExtra("USERNAME", email)
                 startActivity(intent)
-                finish()
+                finish() // Close LoginActivity so user can't go back
+
             } else {
                 Toast.makeText(this, "Please enter email and password", Toast.LENGTH_SHORT).show()
             }
@@ -44,14 +45,14 @@ class LoginActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
-        // NEW: Back button - goes to LaundryReadyActivity
+        // Back button
         tvBack.setOnClickListener {
             val intent = Intent(this, LaundryReadyActivity::class.java)
             startActivity(intent)
             finish()
         }
 
-        // NEW: Sign Up link - goes to RegisterActivity
+        // Sign Up link
         tvSignUp.setOnClickListener {
             val intent = Intent(this, RegisterActivity::class.java)
             startActivity(intent)

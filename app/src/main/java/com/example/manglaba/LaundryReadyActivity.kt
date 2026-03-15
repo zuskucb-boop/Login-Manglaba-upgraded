@@ -13,13 +13,13 @@ class LaundryReadyActivity : AppCompatActivity() {
         val btnLogin = findViewById<Button>(R.id.btnLogin)
         val btnSignIn = findViewById<Button>(R.id.btnSignIn)
 
-        // Login button - goes to your LoginActivity
+        // Login button - goes to LoginActivity
         btnLogin.setOnClickListener {
             val intent = Intent(this, LoginActivity::class.java)
             startActivity(intent)
         }
 
-// Sign In button - goes to RegisterActivity
+        // Sign In button - goes to RegisterActivity
         btnSignIn.setOnClickListener {
             val intent = Intent(this, RegisterActivity::class.java)
             startActivity(intent)

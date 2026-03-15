@@ -13,11 +13,7 @@
         android:theme="@style/Theme.Manglaba"
         tools:targetApi="31">
 
-        <activity
-            android:name=".MainActivity"
-            android:exported="true">
-        </activity>
-
+        <!-- Launcher Activity (First screen when app opens) -->
         <activity
             android:name=".LaundryReadyActivity"
             android:exported="true">
@@ -27,11 +23,10 @@
             </intent-filter>
         </activity>
 
+        <!-- Other Activities (No intent-filter here) -->
         <activity
             android:name=".LoginActivity"
-            android:exported="true">
-
-        </activity>
+            android:exported="true" />
 
         <activity
             android:name=".RegisterActivity"
@@ -43,6 +38,14 @@
 
         <activity
             android:name=".ResetPasswordActivity"
+            android:exported="true" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true" />
+
+        <activity
+            android:name=".HomeActivity"
             android:exported="true" />
 
     </application>
