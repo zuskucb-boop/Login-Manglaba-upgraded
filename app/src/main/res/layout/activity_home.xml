@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#4E73B8"
+    tools:context=".MainActivity">
+
+    <!-- Header -->
+    <TextView
+        android:id="@+id/tvHomeTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Home Page"
+        android:textColor="@android:color/white"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="60dp"/>
+
+    <TextView
+        android:id="@+id/tvWelcome"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Welcome to Manglaba!"
+        android:textColor="@android:color/white"
+        android:textSize="18sp"
+        android:layout_below="@id/tvHomeTitle"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="10dp"/>
+
+    <!-- Main Content Card -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/tvWelcome"
+        android:layout_margin="24dp"
+        android:layout_marginTop="40dp"
+        android:background="@android:color/white"
+        android:elevation="8dp"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Quick Actions"
+            android:textColor="#333"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="20dp"/>
+
+        <Button
+            android:id="@+id/btnStartWashing"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:text="Start Washing"
+            android:textAllCaps="false"
+            android:textColor="@android:color/white"
+            android:backgroundTint="#4E73B8"
+            android:layout_marginBottom="12dp"/>
+
+        <Button
+            android:id="@+id/btnHistory"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:text="View History"
+            android:textAllCaps="false"
+            android:textColor="@android:color/white"
+            android:backgroundTint="#4E73B8"
+            android:layout_marginBottom="12dp"/>
+
+        <Button
+            android:id="@+id/btnProfile"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:text="My Profile"
+            android:textAllCaps="false"
+            android:textColor="@android:color/white"
+            android:backgroundTint="#4E73B8"
+            android:layout_marginBottom="20dp"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#DDDDDD"
+            android:layout_marginBottom="20dp"/>
+
+        <Button
+            android:id="@+id/btnLogout"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:text="Log Out"
+            android:textAllCaps="false"
+            android:textColor="#4E73B8"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_marginBottom="10dp"/>
+
+    </LinearLayout>
+
+</RelativeLayout>
