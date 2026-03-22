@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "478334201779",
+    "project_id": "manglaba-16795",
+    "storage_bucket": "manglaba-16795.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:478334201779:android:eaa9695f4025a78577a5c6",
+        "android_client_info": {
+          "package_name": "com.example.manglaba"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDg8sd8gZyOyey_e9yDJTc0DAxOn-lJsYk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
