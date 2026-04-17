@@ -20,7 +20,6 @@ class RegisterActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_signup)
 
-        // Initialize Firebase
         database = FirebaseDatabase.getInstance("https://manglaba-16795-default-rtdb.asia-southeast1.firebasedatabase.app/").reference
 
         val etFirstName = findViewById<EditText>(R.id.etFirstName)
@@ -62,12 +61,10 @@ class RegisterActivity : AppCompatActivity() {
                     Toast.makeText(this, "Passwords don't match", Toast.LENGTH_SHORT).show()
                 }
                 else -> {
-                    // Check if email already exists
                     checkEmailExists(email) { exists ->
                         if (exists) {
                             Toast.makeText(this, "Email already registered", Toast.LENGTH_SHORT).show()
                         } else {
-                            // Save new user to Firebase
                             saveUserToDatabase(firstName, lastName, email, password)
                         }
                     }
@@ -85,6 +82,18 @@ class RegisterActivity : AppCompatActivity() {
             val intent = Intent(this, LaundryReadyActivity::class.java)
             startActivity(intent)
             finish()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        ForegroundTracker.currentActivity = "RegisterActivity"
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (ForegroundTracker.currentActivity == "RegisterActivity") {
+            ForegroundTracker.currentActivity = null
         }
     }
 
@@ -111,7 +120,7 @@ class RegisterActivity : AppCompatActivity() {
             "firstName" to firstName,
             "lastName" to lastName,
             "email" to email,
-            "password" to password,  // In real app, you should hash this!
+            "password" to password,
             "createdAt" to System.currentTimeMillis().toString()
         )
 

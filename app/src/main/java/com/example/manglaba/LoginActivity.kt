@@ -121,6 +121,18 @@ class LoginActivity : AppCompatActivity() {
                 }
             })
 
+
+    }
+    override fun onResume() {
+        super.onResume()
+        ForegroundTracker.currentActivity = "LoginActivity"
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (ForegroundTracker.currentActivity == "LoginActivity") {
+            ForegroundTracker.currentActivity = null
+        }
     }
 
 }

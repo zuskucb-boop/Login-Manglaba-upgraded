@@ -16,22 +16,31 @@ class ForgotPasswordActivity : AppCompatActivity() {
         val etEmail = findViewById<EditText>(R.id.etEmail)
         val btnSend = findViewById<Button>(R.id.btnSend)
 
-        // Back button - return to Login screen
         tvBack.setOnClickListener {
-            finish() // This closes this screen and goes back
+            finish()
         }
 
-        // Send button - ALL THIS CODE MUST BE INSIDE onCreate
         btnSend.setOnClickListener {
             val email = etEmail.text.toString()
 
             if (email.isEmpty()) {
                 Toast.makeText(this, "Please enter your email", Toast.LENGTH_SHORT).show()
             } else {
-                // Here you would normally send the request
                 Toast.makeText(this, "Reset link sent to $email", Toast.LENGTH_LONG).show()
-                finish() // Go back after sending
+                finish()
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        ForegroundTracker.currentActivity = "ForgotPasswordActivity"
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (ForegroundTracker.currentActivity == "ForgotPasswordActivity") {
+            ForegroundTracker.currentActivity = null
         }
     }
 }
