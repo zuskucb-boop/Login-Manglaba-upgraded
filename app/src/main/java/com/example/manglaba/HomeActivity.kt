@@ -3,6 +3,7 @@ package com.example.manglaba
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
@@ -12,9 +13,23 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.firebase.database.FirebaseDatabase
 
 class HomeActivity : AppCompatActivity() {
+
+    private lateinit var sharedPref: SharedPreferences
+    private var userEmail: String = ""
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
+
+        sharedPref = getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
+        userEmail = sharedPref.getString("USER_EMAIL", "") ?: ""
+
+        // Also get from intent if available (for fresh login)
+        val intentEmail = intent.getStringExtra("USERNAME")
+        if (intentEmail != null && intentEmail.isNotEmpty()) {
+            userEmail = intentEmail
+            sharedPref.edit().putString("USER_EMAIL", userEmail).apply()
+        }
 
         WashingMonitorService.isUserLoggedIn = true
 
@@ -24,13 +39,14 @@ class HomeActivity : AppCompatActivity() {
         val btnProfile = findViewById<Button>(R.id.btnProfile)
         val btnLogout = findViewById<Button>(R.id.btnLogout)
 
-        val username = intent.getStringExtra("USERNAME")
-        if (username != null) {
-            tvWelcome.text = "Welcome, $username!"
+        if (userEmail.isNotEmpty()) {
+            tvWelcome.text = "Welcome, $userEmail!"
         }
 
         btnStartWashing.setOnClickListener {
-            startActivity(Intent(this, WashingMachineActivity::class.java))
+            val intent = Intent(this, MachineListActivity::class.java)
+            intent.putExtra("USER_EMAIL", userEmail)
+            startActivity(intent)
         }
 
         btnHistory.setOnClickListener {
@@ -39,21 +55,22 @@ class HomeActivity : AppCompatActivity() {
 
         btnProfile.setOnClickListener {
             val intent = Intent(this, ProfileActivity::class.java)
-            val username = intent.getStringExtra("USERNAME") ?: tvWelcome.text.toString().replace("Welcome, ", "").replace("!", "")
-            intent.putExtra("USER_EMAIL", username)
+            intent.putExtra("USER_EMAIL", userEmail)
             startActivity(intent)
         }
 
         btnLogout.setOnClickListener {
             resetWashingMachineStatus()
 
+            // Clear saved user data
+            sharedPref.edit().remove("USER_EMAIL").apply()
+
             // Reset values
             WashingMonitorService.isUserLoggedIn = false
             WashingMonitorService.dialogShownForCurrentCycle = false
 
             // Stop service
-            val serviceIntent = Intent(this, WashingMonitorService::class.java)
-            stopService(serviceIntent)
+            stopService(Intent(this, WashingMonitorService::class.java))
 
             // Cancel notifications
             val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -65,9 +82,6 @@ class HomeActivity : AppCompatActivity() {
             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             startActivity(intent)
             finish()
-
-            // Kill the process to ensure everything is cleared
-            android.os.Process.killProcess(android.os.Process.myPid())
         }
     }
 
@@ -82,9 +96,15 @@ class HomeActivity : AppCompatActivity() {
             ForegroundTracker.currentActivity = null
         }
     }
+    override fun onBackPressed() {
+        // Go back to LaundryReadyActivity (welcome screen)
+        val intent = Intent(this, LaundryReadyActivity::class.java)
+        intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        startActivity(intent)
+        finish()
+    }
 
     private fun resetWashingMachineStatus() {
-        resetWashingMachineStatus()
         val firebaseUrl = "https://manglaba-16795-default-rtdb.asia-southeast1.firebasedatabase.app/"
         val database = FirebaseDatabase.getInstance(firebaseUrl).reference
         val updates = mapOf<String, Any>(

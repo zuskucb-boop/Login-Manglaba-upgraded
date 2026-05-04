@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#F2F2F7"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="My Washing Machines"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:textColor="#1C1C1E"
+        android:layout_marginBottom="16dp"/>
+
+    <!-- Empty state text (shown when no machines) -->
+    <TextView
+        android:id="@+id/tvEmpty"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:text="No washing machines added yet.\n\nTap 'Add New Machine' to get started."
+        android:textSize="16sp"
+        android:textColor="#8E8E93"
+        android:gravity="center"
+        android:visibility="gone"/>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerViewMachines"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingBottom="16dp"/>
+
+    <Button
+        android:id="@+id/btnAddMachine"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:text="+ Add New Machine"
+        android:textSize="16sp"
+        android:textAllCaps="false"
+        android:backgroundTint="#007AFF"/>
+
+</LinearLayout>

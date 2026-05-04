@@ -64,9 +64,14 @@
             android:name=".HomeActivity"
             android:exported="true" />
 
+        <activity android:name=".MachineListActivity" android:exported="true" />
+        <activity android:name=".AddMachineActivity" android:exported="true" />
+
         <activity
             android:name=".WashingMachineActivity"
             android:exported="true" />
+
+
 
         <activity
             android:name=".HistoryActivity"

@@ -1,6 +1,8 @@
 package com.example.manglaba
 
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
@@ -15,10 +17,14 @@ import com.google.firebase.database.ValueEventListener
 
 class LoginActivity : AppCompatActivity() {
     private lateinit var database: DatabaseReference
+    private lateinit var sharedPref: SharedPreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_login)
+
+        // Initialize SharedPreferences
+        sharedPref = getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
 
         // Initialize Firebase with your database URL
         database = FirebaseDatabase.getInstance("https://manglaba-16795-default-rtdb.asia-southeast1.firebasedatabase.app/").reference
@@ -29,6 +35,12 @@ class LoginActivity : AppCompatActivity() {
         val tvForgotPassword = findViewById<TextView>(R.id.tvForgotPassword)
         val tvBack = findViewById<TextView>(R.id.tvBack)
         val tvSignUp = findViewById<TextView>(R.id.tvSignUp)
+
+        // Auto-fill email if previously saved (optional)
+        val savedEmail = sharedPref.getString("USER_EMAIL", "")
+        if (!savedEmail.isNullOrEmpty()) {
+            etEmail.setText(savedEmail)
+        }
 
         btnLogin.setOnClickListener {
             val email = etEmail.text.toString().trim()
@@ -54,6 +66,9 @@ class LoginActivity : AppCompatActivity() {
                 btnLogin.text = "Login"
 
                 if (isValid) {
+                    // Save user email to SharedPreferences
+                    sharedPref.edit().putString("USER_EMAIL", email).apply()
+
                     // Login successful
                     Toast.makeText(this, "Login Successful!", Toast.LENGTH_SHORT).show()
 
@@ -120,9 +135,8 @@ class LoginActivity : AppCompatActivity() {
                     callback(false)
                 }
             })
-
-
     }
+
     override fun onResume() {
         super.onResume()
         ForegroundTracker.currentActivity = "LoginActivity"
@@ -134,5 +148,4 @@ class LoginActivity : AppCompatActivity() {
             ForegroundTracker.currentActivity = null
         }
     }
-
 }
