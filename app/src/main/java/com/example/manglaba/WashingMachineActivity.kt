@@ -85,6 +85,11 @@ class WashingMachineActivity : AppCompatActivity() {
         machineId = intent.getStringExtra("MACHINE_ID") ?: "machine_001"
         machineName = intent.getStringExtra("MACHINE_NAME") ?: "Washing Machine"
 
+        // ===== CRITICAL: Set the service's current machine ID =====
+        WashingMonitorService.currentMachineId = machineId
+        Log.d("WashingMachine", "Service currentMachineId set to: ${WashingMonitorService.currentMachineId}")
+        // =========================================================
+
         // Get user email from SharedPreferences
         val sharedPref = getSharedPreferences("MyAppPrefs", MODE_PRIVATE)
         userEmail = sharedPref.getString("USER_EMAIL", "") ?: ""

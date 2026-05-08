@@ -52,9 +52,13 @@
             android:id="@+id/btnDeleteMachine"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:text="🗑️"
-            android:background="@android:color/transparent"
-            android:shadowColor="#FF0000"/>
+            android:text="✕"
+            android:textSize="20sp"
+            android:textColor="#FF0000"
+            android:textStyle="bold"
+            android:backgroundTint="#FFEEEE"
+            android:gravity="center"
+            android:padding="0dp"/>
 
     </LinearLayout>
 

@@ -5,12 +5,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
-import android.util.Log
 import android.widget.Button
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.firebase.database.FirebaseDatabase
+import android.widget.Toast
 
 class HomeActivity : AppCompatActivity() {
 
@@ -60,19 +59,28 @@ class HomeActivity : AppCompatActivity() {
         }
 
         btnLogout.setOnClickListener {
-            resetWashingMachineStatus()
-
-            // Clear saved user data
-            sharedPref.edit().remove("USER_EMAIL").apply()
-
-            // Reset values
             WashingMonitorService.isUserLoggedIn = false
             WashingMonitorService.dialogShownForCurrentCycle = false
 
-            // Stop service
-            stopService(Intent(this, WashingMonitorService::class.java))
+            // Stop service with cleanup
+            val stopIntent = Intent(this, WashingMonitorService::class.java)
+            stopIntent.action = "ACTION_STOP_SERVICE"
+            stopService(stopIntent)
 
-            // Cancel notifications
+            // Reset Firebase
+            FirebaseDatabase.getInstance("https://manglaba-16795-default-rtdb.asia-southeast1.firebasedatabase.app/")
+                .reference.child("washingMachines").child(WashingMonitorService.currentMachineId)
+                .updateChildren(mapOf(
+                    "status" to "idle",
+                    "appConnected" to false,
+                    "intensity" to 0,
+                    "timer" to 120,
+                    "lastUpdate" to System.currentTimeMillis()
+                ))
+
+            sharedPref.edit().remove("USER_EMAIL").apply()
+            WashingMonitorService.resetCompanion()
+
             val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             nm.cancelAll()
 
@@ -96,6 +104,7 @@ class HomeActivity : AppCompatActivity() {
             ForegroundTracker.currentActivity = null
         }
     }
+
     override fun onBackPressed() {
         // Go back to LaundryReadyActivity (welcome screen)
         val intent = Intent(this, LaundryReadyActivity::class.java)
@@ -105,15 +114,17 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun resetWashingMachineStatus() {
-        val firebaseUrl = "https://manglaba-16795-default-rtdb.asia-southeast1.firebasedatabase.app/"
-        val database = FirebaseDatabase.getInstance(firebaseUrl).reference
+        val database =
+            FirebaseDatabase.getInstance("https://manglaba-16795-default-rtdb.asia-southeast1.firebasedatabase.app/").reference
         val updates = mapOf<String, Any>(
             "status" to "idle",
+            "appConnected" to false,
             "intensity" to 0,
+            "timer" to 120,
             "lastUpdate" to System.currentTimeMillis()
         )
-        database.child("washingMachine").updateChildren(updates)
-            .addOnSuccessListener { Log.d("HomeActivity", "Firebase reset on logout") }
-            .addOnFailureListener { Log.e("HomeActivity", "Firebase reset failed") }
+        // Fix: "washingMachine" -> "washingMachines"
+        database.child("washingMachines").child(WashingMonitorService.currentMachineId)
+            .updateChildren(updates)
     }
 }

@@ -69,6 +69,8 @@ class LoginActivity : AppCompatActivity() {
                     // Save user email to SharedPreferences
                     sharedPref.edit().putString("USER_EMAIL", email).apply()
 
+                    WashingMonitorService.isUserLoggedIn = true
+
                     // Login successful
                     Toast.makeText(this, "Login Successful!", Toast.LENGTH_SHORT).show()
 

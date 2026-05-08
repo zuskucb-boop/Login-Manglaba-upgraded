@@ -130,7 +130,8 @@
         android:text="Refresh Status"
         android:textSize="16sp"
         android:textAllCaps="false"
-        android:backgroundTint="#4E73B8"/>
+        android:backgroundTint="#4E73B8"
+        android:textColor="@color/white"/>
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -146,8 +147,9 @@
             android:text="Set Timer"
             android:textSize="14sp"
             android:textAllCaps="false"
-            android:backgroundTint="#FF9800"
-            android:layout_marginEnd="5dp"/>
+            android:backgroundTint="#FF9421"
+            android:layout_marginEnd="5dp"
+            android:textColor="@color/white"/>
 
         <Button
             android:id="@+id/btnReset"
@@ -157,8 +159,9 @@
             android:text="Reset"
             android:textSize="14sp"
             android:textAllCaps="false"
-            android:backgroundTint="#F44336"
-            android:layout_marginStart="5dp"/>
+            android:backgroundTint="#C90000"
+            android:layout_marginStart="5dp"
+            android:textColor="@color/white"/>
 
     </LinearLayout>
 

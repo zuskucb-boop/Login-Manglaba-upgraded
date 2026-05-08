@@ -30,24 +30,17 @@ class WashingMonitorService : Service() {
     private lateinit var database: DatabaseReference
     private val handler = Handler(Looper.getMainLooper())
 
-    // Store timer data for EACH machine independently
     private val machineTimers = mutableMapOf<String, MachineTimerData>()
-
-    // Original timer variables (kept for backward compatibility)
-    private var timerRunnable: Runnable? = null
-    private var timerRunning = false
-    private var machineRunning = false
-    private var vibrationValue = 0
-    private var remainingSeconds = 120
-    private var totalTimerSeconds = 120
-    private var startTime = 0L
-    private var cycleCompleteNotified = false
+    private val machinesWithESP32 = mutableSetOf<String>()
+    private var heartbeatRunnable: Runnable? = null
+    private var firebaseListener: ValueEventListener? = null
 
     companion object {
         const val CHANNEL_ID = "washing_monitor"
         const val NOTIFICATION_ID = 1001
         const val ACTION_CYCLE_COMPLETE = "CYCLE_COMPLETE"
         const val ACTION_MACHINE_DATA_UPDATED = "MACHINE_DATA_UPDATED"
+        const val ACTION_STOP_SERVICE = "ACTION_STOP_SERVICE"
 
         var currentTimerSeconds = 120
         var isTimerRunning = false
@@ -57,11 +50,8 @@ class WashingMonitorService : Service() {
         var dialogShownForCurrentCycle = false
         var isUserLoggedIn = false
         var currentAlertNotificationId = NOTIFICATION_ID + 1
-
-        // Current machine ID
         var currentMachineId = "machine_001"
 
-        // Multi-machine storage (keeps data for all machines)
         val machineStatusMap = mutableMapOf<String, String>()
         val machineVibrationMap = mutableMapOf<String, String>()
         val machineTimerMap = mutableMapOf<String, Int>()
@@ -93,33 +83,23 @@ class WashingMonitorService : Service() {
         }
     }
 
-    // Data class for multi-machine timer storage
     data class MachineTimerData(
         var timerRunning: Boolean = false,
         var remainingSeconds: Int = 120,
         var startTime: Long = 0,
         var totalSeconds: Int = 120,
-        var stopTime: Long = 0,
         var machineRunning: Boolean = false,
         var vibrationValue: Int = 0,
         var cycleCompleteNotified: Boolean = false,
-        var timerRunnable: Runnable? = null
+        var timerRunnable: Runnable? = null,
+        var hasESP32Confirmed: Boolean = false
     )
 
     fun forceStop(context: Context) {
-        isUserLoggedIn = false
-        dialogShownForCurrentCycle = false
-        currentTimerSeconds = 120
-        isTimerRunning = false
-        isMachineRunning = false
-        currentMachineStatus = "⚪ IDLE"
-        currentVibrationStatus = "⚪ NO VIBRATION"
-
+        performFullCleanup()
         val intent = Intent("STOP_FOREGROUND")
         LocalBroadcastManager.getInstance(context).sendBroadcast(intent)
-
         context.stopService(Intent(context, WashingMonitorService::class.java))
-
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.cancelAll()
     }
@@ -134,27 +114,49 @@ class WashingMonitorService : Service() {
     }
 
     fun stopServiceNow() {
+        performFullCleanup()
         stopForeground(true)
-        stopTimer()
         stopSelf()
     }
 
     override fun onCreate() {
         super.onCreate()
+
+        // Clear everything first
+        handler.removeCallbacksAndMessages(null)
+        machineTimers.clear()
+        machinesWithESP32.clear()
+
         resetCompanion()
-        Log.d("WashingMonitor", "Service created for machine: $currentMachineId")
+        Log.d("WashingMonitor", "Multi-machine service created")
 
         database = FirebaseDatabase.getInstance("https://manglaba-16795-default-rtdb.asia-southeast1.firebasedatabase.app/").reference
 
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
 
+        // onDisconnect for app crash detection
+        database.child("washingMachines").child(currentMachineId)
+            .child("appConnected")
+            .onDisconnect()
+            .setValue(false)
+
+        // Force reset to idle on fresh login
+        database.child("washingMachines").child(currentMachineId)
+            .updateChildren(mapOf(
+                "status" to "idle",
+                "appConnected" to true,
+                "intensity" to 0,
+                "timer" to 120,
+                "lastUpdate" to System.currentTimeMillis()
+            ))
+
+        // Set app as connected
+        setAppConnected(true)
+        startHeartbeat()
+
         // Listen to ALL machines
         listenToAllMachines()
-
-        // Keep original listeners
-        listenToVibration()
-        listenToStatus()
 
         LocalBroadcastManager.getInstance(this).registerReceiver(
             stopForegroundReceiver,
@@ -162,9 +164,96 @@ class WashingMonitorService : Service() {
         )
     }
 
-    // Listen to all machines for multi-machine support
+    // ========== APP REMOVED FROM BACKGROUND ==========
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        Log.d("WashingMonitor", "⚠️ App removed from background/recents!")
+        performFullCleanup()
+        stopForeground(true)
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
+
+    // ========== FULL CLEANUP ==========
+    private fun performFullCleanup() {
+        Log.d("WashingMonitor", "🧹 Performing full cleanup...")
+
+        isUserLoggedIn = false
+        stopHeartbeat()
+
+        // Stop all timers
+        machineTimers.forEach { (_, timerData) ->
+            timerData.timerRunnable?.let { handler.removeCallbacks(it) }
+            timerData.timerRunning = false
+            timerData.machineRunning = false
+        }
+        machineTimers.clear()
+        handler.removeCallbacksAndMessages(null)
+
+        // Reset Firebase
+        database.child("washingMachines").child(currentMachineId)
+            .updateChildren(mapOf(
+                "status" to "idle",
+                "appConnected" to false,
+                "intensity" to 0,
+                "timer" to 120,
+                "lastUpdate" to System.currentTimeMillis()
+            ))
+
+        resetCompanion()
+        dialogShownForCurrentCycle = false
+
+        // Cancel notifications
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.cancelAll()
+        manager.cancel(NOTIFICATION_ID)
+        manager.cancel(NOTIFICATION_ID + 1)
+
+        Log.d("WashingMonitor", "✅ Full cleanup complete")
+    }
+
+    // ========== APP CONNECTION HEARTBEAT ==========
+    private fun setAppConnected(connected: Boolean) {
+        database.child("washingMachines").child(currentMachineId)
+            .child("appConnected")
+            .setValue(connected)
+            .addOnSuccessListener {
+                Log.d("WashingMonitor", if (connected) "📱 App CONNECTED" else "📱 App DISCONNECTED")
+            }
+            .addOnFailureListener { e ->
+                Log.e("WashingMonitor", "❌ Failed to set appConnected: ${e.message}")
+            }
+    }
+
+    private fun startHeartbeat() {
+        stopHeartbeat()
+        heartbeatRunnable = object : Runnable {
+            override fun run() {
+                if (isUserLoggedIn) {
+                    database.child("washingMachines").child(currentMachineId)
+                        .child("appConnected")
+                        .setValue(true)
+                        .addOnFailureListener { e ->
+                            Log.e("WashingMonitor", "❌ Heartbeat failed: ${e.message}")
+                        }
+                    handler.postDelayed(this, 3000)
+                }
+            }
+        }
+        handler.post(heartbeatRunnable!!)
+        Log.d("WashingMonitor", "💓 App heartbeat started")
+    }
+
+    private fun stopHeartbeat() {
+        heartbeatRunnable?.let { handler.removeCallbacks(it) }
+        heartbeatRunnable = null
+        Log.d("WashingMonitor", "💔 App heartbeat stopped")
+    }
+
+    // ========== MACHINE LISTENING ==========
     private fun listenToAllMachines() {
-        database.child("washingMachines").addValueEventListener(object : ValueEventListener {
+        firebaseListener?.let { database.child("washingMachines").removeEventListener(it) }
+
+        firebaseListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 if (!isUserLoggedIn) return
 
@@ -181,11 +270,41 @@ class WashingMonitorService : Service() {
                     machineTimerMap[machineId] = timerValue
                     machineNameMap[machineId] = machineName
 
-                    // Process timer logic for this machine independently
-                    processMachineTimer(machineId, status, vibration, timerValue)
+                    // Get or create timer data for this machine
+                    val timerData = machineTimers.getOrPut(machineId) { MachineTimerData() }
+
+                    // ===== STRICT AUTO-DETECT ESP32 =====
+                    if (vibration == 1 && !timerData.hasESP32Confirmed) {
+                        machinesWithESP32.add(machineId)
+                        timerData.hasESP32Confirmed = true
+                        Log.d("WashingMonitor", "✅ Machine $machineId: ESP32 CONFIRMED (vibration detected)")
+                    }
+
+                    // Process timer logic ONLY for machines with confirmed ESP32
+                    if (machinesWithESP32.contains(machineId)) {
+                        processMachineTimer(machineId, status, vibration, timerValue)
+                    } else {
+                        machineTimerMap[machineId] = 120
+                        machineStatusMap[machineId] = "idle"
+                        Log.d("WashingMonitor", "❌ Machine $machineId: NO ESP32 - Ignoring status changes")
+                    }
 
                     // Update notification for this specific machine
                     updateNotificationForMachine(machineId)
+
+                    // Update current machine data for backward compatibility
+                    if (machineId == currentMachineId && machinesWithESP32.contains(machineId)) {
+                        currentVibrationStatus = machineVibrationMap[machineId] ?: "⚪ NO VIBRATION"
+                        currentTimerSeconds = machineTimerMap[machineId] ?: 120
+                        currentMachineStatus = when (status) {
+                            "running" -> "🟢 WASHING IN PROGRESS"
+                            "finished" -> "✅ CYCLE COMPLETE!"
+                            "stopped" -> "🟠 MACHINE PAUSED"
+                            else -> "⚪ IDLE"
+                        }
+                        isMachineRunning = status == "running"
+                        isTimerRunning = machineTimers[machineId]?.timerRunning == true
+                    }
 
                     // Send broadcast for this specific machine
                     val intent = Intent(ACTION_MACHINE_DATA_UPDATED)
@@ -197,19 +316,24 @@ class WashingMonitorService : Service() {
             override fun onCancelled(error: DatabaseError) {
                 Log.e("WashingMonitor", "Error listening to machines: ${error.message}")
             }
-        })
+        }
+        database.child("washingMachines").addValueEventListener(firebaseListener!!)
     }
 
-    // Update notification for a specific machine
+    // ========== NOTIFICATION UPDATE ==========
     private fun updateNotificationForMachine(machineId: String) {
+        if (!isUserLoggedIn) return
+
         val status = machineStatusMap[machineId] ?: "idle"
         val timerValue = machineTimerMap[machineId] ?: 120
         val machineName = machineNameMap[machineId] ?: machineId
+        val hasESP32 = machinesWithESP32.contains(machineId)
 
-        val statusText = when (status) {
-            "running" -> "🟢 WASHING IN PROGRESS"
-            "stopped" -> "⏱️ Timer: ${formatTime(timerValue)}"
-            "finished" -> "✅ CYCLE COMPLETE!"
+        val statusText = when {
+            !hasESP32 -> "🔌 NO ESP32 CONNECTED"
+            status == "running" -> "🟢 WASHING IN PROGRESS"
+            status == "stopped" -> "⏱️ Timer: ${formatTime(timerValue)}"
+            status == "finished" -> "✅ CYCLE COMPLETE!"
             else -> "⚪ IDLE"
         }
 
@@ -232,68 +356,140 @@ class WashingMonitorService : Service() {
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(pendingIntent)
-            .setOngoing(status == "stopped" || status == "running")
+            .setOngoing(hasESP32 && (status == "stopped" || status == "running"))
             .build()
 
         (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
             .notify(notificationId, notification)
     }
 
-    // Process each machine's timer independently
+    // ========== PROCESS MACHINE TIMER ==========
     private fun processMachineTimer(machineId: String, status: String, vibration: Int, timerSeconds: Int) {
+        if (!isUserLoggedIn || !machinesWithESP32.contains(machineId)) {
+            return
+        }
+
         val timerData = machineTimers.getOrPut(machineId) { MachineTimerData() }
+        timerData.vibrationValue = vibration
+
+        // FORCE STOP TIMER IF IDLE
+        if (status == "idle") {
+            if (timerData.timerRunning) {
+                timerData.timerRunnable?.let { handler.removeCallbacks(it) }
+                timerData.timerRunnable = null
+                timerData.timerRunning = false
+                Log.d("WashingMonitor", "Machine $machineId: IDLE - Timer FORCE STOPPED")
+            }
+            timerData.machineRunning = false
+            timerData.cycleCompleteNotified = false
+            timerData.totalSeconds = 120
+            timerData.remainingSeconds = 120
+            machineTimerMap[machineId] = 120
+            return
+        }
 
         when (status) {
             "running" -> {
+                if (timerData.timerRunning) {
+                    timerData.timerRunnable?.let { handler.removeCallbacks(it) }
+                    timerData.timerRunnable = null
+                    timerData.timerRunning = false
+                    Log.d("WashingMonitor", "Machine $machineId: RUNNING - Timer STOPPED")
+                }
                 timerData.machineRunning = true
-                timerData.timerRunning = false
-                timerData.stopTime = 0
                 timerData.cycleCompleteNotified = false
-                Log.d("WashingMonitor", "Machine $machineId is RUNNING")
+                timerData.remainingSeconds = 0
+                machineTimerMap[machineId] = 0
+                Log.d("WashingMonitor", "Machine $machineId: Timer set to 00:00 (vibration detected)")
             }
             "stopped" -> {
-                if (timerData.machineRunning && !timerData.timerRunning && vibration == 0) {
-                    Log.d("WashingMonitor", "Machine $machineId STOPPED - Starting timer")
-                    timerData.timerRunning = true
-                    timerData.startTime = System.currentTimeMillis()
-                    timerData.totalSeconds = timerSeconds
-                    timerData.remainingSeconds = timerSeconds
-                    startMachineTimer(machineId, timerData)
+                timerData.machineRunning = true
+                if (!timerData.timerRunning && timerData.vibrationValue == 0) {
+                    Log.d("WashingMonitor", "Machine $machineId: STOPPED - Starting independent timer")
+                    startMachineTimer(machineId, timerData, timerSeconds)
+                } else if (timerData.vibrationValue == 1) {
+                    if (timerData.timerRunning) {
+                        timerData.timerRunnable?.let { handler.removeCallbacks(it) }
+                        timerData.timerRunnable = null
+                        timerData.timerRunning = false
+                    }
+                    timerData.remainingSeconds = 0
+                    machineTimerMap[machineId] = 0
+                    Log.d("WashingMonitor", "Machine $machineId: STOPPED but vibration detected - Timer 00:00")
                 }
             }
             "finished" -> {
                 if (!timerData.cycleCompleteNotified) {
                     timerData.cycleCompleteNotified = true
-                    Log.d("WashingMonitor", "Machine $machineId FINISHED - Showing alert")
+                    Log.d("WashingMonitor", "Machine $machineId: FINISHED - Showing alert")
                     showAlertForMachine(machineId)
                 }
                 timerData.machineRunning = false
-                timerData.timerRunning = false
-            }
-            "idle" -> {
-                timerData.machineRunning = false
-                timerData.timerRunning = false
-                timerData.stopTime = 0
-                timerData.cycleCompleteNotified = false
-                Log.d("WashingMonitor", "Machine $machineId is IDLE")
+                if (timerData.timerRunning) {
+                    timerData.timerRunnable?.let { handler.removeCallbacks(it) }
+                    timerData.timerRunnable = null
+                    timerData.timerRunning = false
+                }
+                timerData.remainingSeconds = 0
+                machineTimerMap[machineId] = 0
             }
         }
     }
 
-    // Start timer for a specific machine
-    private fun startMachineTimer(machineId: String, timerData: MachineTimerData) {
-        timerData.timerRunnable?.let { handler.removeCallbacks(it) }
+    // ========== START MACHINE TIMER ==========
+    private fun startMachineTimer(machineId: String, timerData: MachineTimerData, timerSeconds: Int) {
+        if (timerData.timerRunning) {
+            Log.d("WashingMonitor", "Machine $machineId: Timer already running, not starting another")
+            return
+        }
+
+        if (timerData.vibrationValue == 1) {
+            Log.d("WashingMonitor", "Machine $machineId: Cannot start timer - vibration is 1")
+            timerData.remainingSeconds = 0
+            machineTimerMap[machineId] = 0
+            updateNotificationForMachine(machineId)
+            return
+        }
+
+        timerData.timerRunning = true
+        timerData.startTime = System.currentTimeMillis()
+        timerData.totalSeconds = timerSeconds
+        timerData.remainingSeconds = timerSeconds
+        machineTimerMap[machineId] = timerSeconds
+
+        Log.d("WashingMonitor", "⏱️ Timer STARTED for machine $machineId (${timerSeconds}s)")
 
         timerData.timerRunnable = object : Runnable {
             override fun run() {
+                if (!isUserLoggedIn || !timerData.timerRunning) {
+                    timerData.timerRunning = false
+                    return
+                }
+
                 val elapsed = (System.currentTimeMillis() - timerData.startTime) / 1000
                 val remaining = timerData.totalSeconds - elapsed.toInt()
 
-                if (remaining <= 0) {
-                    Log.d("WashingMonitor", "Machine $machineId timer FINISHED!")
+                if (timerData.vibrationValue == 1) {
+                    Log.d("WashingMonitor", "Machine $machineId: Vibration detected - Stopping timer")
                     timerData.timerRunning = false
-                    database.child("washingMachines").child(machineId).child("status").setValue("finished")
-                    machineStatusMap[machineId] = "finished"
+                    timerData.machineRunning = true
+                    timerData.remainingSeconds = 0
+                    machineTimerMap[machineId] = 0
+                    updateNotificationForMachine(machineId)
+                    return
+                }
+
+                if (remaining <= 0) {
+                    Log.d("WashingMonitor", "Machine $machineId: Timer FINISHED!")
+                    timerData.timerRunning = false
+                    timerData.machineRunning = false
+                    if (!timerData.cycleCompleteNotified && isUserLoggedIn) {
+                        timerData.cycleCompleteNotified = true
+                        database.child("washingMachines").child(machineId).child("status").setValue("finished")
+                        machineStatusMap[machineId] = "finished"
+                        showAlertForMachine(machineId)
+                    }
+                    timerData.remainingSeconds = 0
                     machineTimerMap[machineId] = 0
                     updateNotificationForMachine(machineId)
 
@@ -309,10 +505,20 @@ class WashingMonitorService : Service() {
             }
         }
         handler.post(timerData.timerRunnable!!)
+        updateNotificationForMachine(machineId)
+
+        val intent = Intent(ACTION_MACHINE_DATA_UPDATED)
+        intent.putExtra("MACHINE_ID", machineId)
+        LocalBroadcastManager.getInstance(this@WashingMonitorService).sendBroadcast(intent)
     }
 
-    // Show alert for a specific machine
+    // ========== SHOW ALERT ==========
     private fun showAlertForMachine(machineId: String) {
+        if (!isUserLoggedIn) {
+            Log.d("WashingMonitor", "Alert blocked - user not logged in")
+            return
+        }
+
         val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         if (vibrator.hasVibrator()) {
             vibrator.vibrate(VibrationEffect.createOneShot(3000, VibrationEffect.DEFAULT_AMPLITUDE))
@@ -326,6 +532,7 @@ class WashingMonitorService : Service() {
         val notificationIntent = Intent(this, WashingMachineActivity::class.java).apply {
             putExtra("MACHINE_ID", machineId)
             putExtra("MACHINE_NAME", machineName)
+            putExtra("SHOW_CYCLE_COMPLETE_DIALOG", true)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val pendingIntent = PendingIntent.getActivity(
@@ -346,24 +553,23 @@ class WashingMonitorService : Service() {
         manager.notify(NOTIFICATION_ID + 100 + abs(machineId.hashCode()) % 1000, notification)
     }
 
+    // ========== RESET MACHINE TIMER ==========
     private fun resetMachineTimer(machineId: String) {
         val timerData = machineTimers[machineId]
         if (timerData != null) {
-            // Stop the running timer
             timerData.timerRunnable?.let { handler.removeCallbacks(it) }
+            timerData.timerRunnable = null
             timerData.timerRunning = false
             timerData.machineRunning = false
             timerData.remainingSeconds = 120
             timerData.totalSeconds = 120
             timerData.cycleCompleteNotified = false
-            timerData.stopTime = 0
+            timerData.vibrationValue = 0
         }
 
-        // Update maps
         machineTimerMap[machineId] = 120
         machineStatusMap[machineId] = "idle"
 
-        // Update Firebase
         val updates = mapOf<String, Any>(
             "status" to "idle",
             "intensity" to 0,
@@ -371,11 +577,8 @@ class WashingMonitorService : Service() {
             "lastUpdate" to System.currentTimeMillis()
         )
         database.child("washingMachines").child(machineId).updateChildren(updates)
-
-        // Update notification
         updateNotificationForMachine(machineId)
 
-        // Send broadcast to update UI
         val intent = Intent(ACTION_MACHINE_DATA_UPDATED)
         intent.putExtra("MACHINE_ID", machineId)
         LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
@@ -383,9 +586,19 @@ class WashingMonitorService : Service() {
         Log.d("WashingMonitor", "Machine $machineId reset - timer stopped")
     }
 
+    // ========== ON START COMMAND ==========
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP_SERVICE) {
+            performFullCleanup()
+            stopForeground(true)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
         if (!isUserLoggedIn) {
             Log.d("WashingMonitor", "User not logged in - stopping service")
+            performFullCleanup()
+            stopForeground(true)
             stopSelf()
             return START_NOT_STICKY
         }
@@ -398,299 +611,20 @@ class WashingMonitorService : Service() {
             "ACTION_SET_TIMER" -> {
                 val seconds = intent.getIntExtra("TIMER_SECONDS", 120)
                 val machineId = intent.getStringExtra("MACHINE_ID") ?: currentMachineId
-                // Update the timer for this specific machine
-                val timerData = machineTimers.getOrPut(machineId) { MachineTimerData() }
-                timerData.totalSeconds = seconds
-                timerData.remainingSeconds = seconds
-                machineTimerMap[machineId] = seconds
-                updateNotificationForMachine(machineId)
-                Log.d("WashingMonitor", "Timer set to $seconds seconds for machine $machineId")
-            }
-        }
-        return START_NOT_STICKY
-    }
-
-    private fun saveTimerToFirebase(seconds: Int) {
-        val timerRef = database.child("washingMachines").child(currentMachineId).child("timer")
-        timerRef.setValue(seconds)
-            .addOnSuccessListener {
-                Log.d("WashingMonitor", "Timer saved to Firebase: $seconds seconds for machine $currentMachineId")
-            }
-            .addOnFailureListener {
-                Log.e("WashingMonitor", "Failed to save timer: ${it.message}")
-            }
-    }
-
-    private fun listenToVibration() {
-        database.child("washingMachines").child(currentMachineId).child("currentVibration").child("value")
-            .addValueEventListener(object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    if (!isUserLoggedIn) return
-                    val newValue = snapshot.getValue(Int::class.java) ?: 0
-                    vibrationValue = newValue
-                    Log.d("WashingMonitor", "Vibration for $currentMachineId: $newValue")
-
-                    machineVibrationMap[currentMachineId] = if (newValue == 1) "🔴 VIBRATION DETECTED!" else "⚪ NO VIBRATION"
-                    currentVibrationStatus = machineVibrationMap[currentMachineId] ?: "⚪ NO VIBRATION"
-
-                    // Get current status from Firebase
-                    val currentStatus = machineStatusMap[currentMachineId] ?: "idle"
-
-                    if (newValue == 1) {
-                        // VIBRATION DETECTED - Machine is running
-                        dialogShownForCurrentCycle = false
-                        cycleCompleteNotified = false
-
-                        // ALWAYS stop timer when vibration is detected
-                        if (timerRunning) {
-                            stopTimer()
-                        }
-                        // Ensure timer cannot run
-                        timerRunning = false
-                        isTimerRunning = false
-
-                        machineRunning = true
-                        isMachineRunning = true
-                        currentMachineStatus = "🟢 WASHING IN PROGRESS"
-
-                        Log.d("WashingMonitor", "Vibration detected - Timer STOPPED, machine RUNNING")
-
-                    } else {
-                        // NO VIBRATION
-                        currentVibrationStatus = "⚪ NO VIBRATION"
-
-                        // Only start timer if: machine was running AND timer not running AND status is "stopped"
-                        if (machineRunning && !timerRunning && newValue == 0 && currentStatus == "stopped") {
-                            currentMachineStatus = "🟠 MACHINE PAUSED"
-                            startTimer()
-                            Log.d("WashingMonitor", "No vibration & status stopped - Timer STARTED")
-                        } else if (machineRunning && newValue == 0 && timerRunning) {
-                            currentMachineStatus = "🟠 MACHINE PAUSED"
-                            Log.d("WashingMonitor", "No vibration - Timer already running")
-                        } else if (currentStatus == "running") {
-                            // Safety: if status says running but we're here, ensure timer is stopped
-                            if (timerRunning) {
-                                stopTimer()
-                                Log.d("WashingMonitor", "Safety: Status is running but timer was running - forced stop")
-                            }
-                        }
-                    }
-                    updateNotificationForMachine(currentMachineId)
-                }
-
-                override fun onCancelled(error: DatabaseError) {}
-            })
-    }
-
-    private fun listenToStatus() {
-        database.child("washingMachines").child(currentMachineId).child("status")
-            .addValueEventListener(object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    if (!isUserLoggedIn) return
-                    val status = snapshot.getValue(String::class.java) ?: "idle"
-                    machineStatusMap[currentMachineId] = status
-                    Log.d("WashingMonitor", "Status for $currentMachineId: $status")
-
-                    currentMachineStatus = when (status) {
-                        "running" -> "🟢 WASHING IN PROGRESS"
-                        "finished" -> "✅ CYCLE COMPLETE!"
-                        "stopped" -> "🟠 MACHINE PAUSED"
-                        else -> "⚪ IDLE"
-                    }
-
-                    when (status) {
-                        "running" -> {
-                            cycleCompleteNotified = false
-                            if (timerRunning) stopTimer()
-                            machineRunning = true
-                            isMachineRunning = true
-                            currentMachineStatus = "🟢 WASHING IN PROGRESS"
-                        }
-                        "stopped" -> {
-                            currentMachineStatus = "🟠 MACHINE PAUSED"
-                            if (machineRunning && !timerRunning && vibrationValue == 0) startTimer()
-                        }
-                        "finished" -> {
-                            machineRunning = false
-                            isMachineRunning = false
-                            if (!cycleCompleteNotified) {
-                                cycleCompleteNotified = true
-                                showAlertAndDialog()
-                            }
-                            stopTimer()
-                            currentMachineStatus = "✅ CYCLE COMPLETE!"
-                        }
-                        "idle" -> {
-                            machineRunning = false
-                            isMachineRunning = false
-                            stopTimer()
-                            currentMachineStatus = "⚪ IDLE"
-
-                            totalTimerSeconds = 120
-                            remainingSeconds = 120
-                            currentTimerSeconds = 120
-                            Log.d("WashingMonitor", "Timer reset to 2 minutes due to logout")
-                        }
-                    }
-                    updateNotificationForMachine(currentMachineId)
-                }
-
-                override fun onCancelled(error: DatabaseError) {}
-            })
-    }
-
-    private fun startTimer() {
-        if (timerRunning) return
-        timerRunning = true
-        isTimerRunning = true
-        remainingSeconds = totalTimerSeconds
-        currentTimerSeconds = remainingSeconds
-        startTime = System.currentTimeMillis()
-
-        Log.d("WashingMonitor", "⏱️ Timer STARTED in service for machine $currentMachineId")
-
-        timerRunnable = object : Runnable {
-            override fun run() {
-                if (!timerRunning) return
-                val elapsed = (System.currentTimeMillis() - startTime) / 1000
-                remainingSeconds = (totalTimerSeconds - elapsed).toInt()
-                currentTimerSeconds = remainingSeconds
-
-                Log.d("WashingMonitor", "⏱️ Service timer for $currentMachineId: $remainingSeconds seconds left")
-
-                if (vibrationValue == 1) {
-                    stopTimer()
-                    machineRunning = true
-                    isMachineRunning = true
-                    currentMachineStatus = "🟢 WASHING IN PROGRESS"
-                    updateNotificationForMachine(currentMachineId)
-                    return
-                }
-
-                if (remainingSeconds <= 0) {
-                    stopTimer()
-                    machineRunning = false
-                    isMachineRunning = false
-                    if (!cycleCompleteNotified) {
-                        cycleCompleteNotified = true
-                        showAlertAndDialog()
-                    }
-                    updateFirebaseFinished()
-                    currentMachineStatus = "✅ CYCLE COMPLETE!"
-                    updateNotificationForMachine(currentMachineId)
-                } else {
-                    updateNotificationForMachine(currentMachineId)
-                    handler.postDelayed(this, 1000)
+                if (machinesWithESP32.contains(machineId)) {
+                    val timerData = machineTimers.getOrPut(machineId) { MachineTimerData() }
+                    timerData.totalSeconds = seconds
+                    timerData.remainingSeconds = seconds
+                    machineTimerMap[machineId] = seconds
+                    updateNotificationForMachine(machineId)
+                    Log.d("WashingMonitor", "Timer set to $seconds seconds for machine $machineId")
                 }
             }
         }
-        handler.post(timerRunnable!!)
-        updateNotificationForMachine(currentMachineId)
+        return START_STICKY
     }
 
-    private fun resetEverything() {
-        stopTimer()
-        machineRunning = false
-        isMachineRunning = false
-        cycleCompleteNotified = false
-        vibrationValue = 0
-        remainingSeconds = totalTimerSeconds
-        currentTimerSeconds = totalTimerSeconds
-        currentMachineStatus = "⚪ IDLE"
-        currentVibrationStatus = "⚪ NO VIBRATION"
-
-        val updates = mapOf<String, Any>(
-            "status" to "idle",
-            "intensity" to 0,
-            "lastUpdate" to System.currentTimeMillis()
-        )
-        database.child("washingMachines").child(currentMachineId).updateChildren(updates)
-        updateNotificationForMachine(currentMachineId)
-    }
-
-    private fun shouldShowFullScreenNotification(): Boolean {
-        val currentActivity = ForegroundTracker.currentActivity
-        return currentActivity == null || (
-                currentActivity != "LoginActivity" &&
-                        currentActivity != "RegisterActivity" &&
-                        currentActivity != "ForgotPasswordActivity" &&
-                        currentActivity != "LaundryReadyActivity"
-                )
-    }
-
-    private fun showAlertAndDialog() {
-        Log.d("WashingMonitor", "Cycle complete for machine $currentMachineId")
-
-        if (!isUserLoggedIn) {
-            Log.d("WashingMonitor", "User not logged in - skipping notification")
-            return
-        }
-
-        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-        if (vibrator.hasVibrator()) {
-            vibrator.vibrate(VibrationEffect.createOneShot(3000, VibrationEffect.DEFAULT_AMPLITUDE))
-        }
-
-        val broadcastIntent = Intent(ACTION_CYCLE_COMPLETE)
-        broadcastIntent.putExtra("MACHINE_ID", currentMachineId)
-        LocalBroadcastManager.getInstance(this).sendBroadcast(broadcastIntent)
-
-        if (shouldShowFullScreenNotification()) {
-            val machineName = machineNameMap[currentMachineId] ?: currentMachineId
-            val intent = Intent(this, WashingMachineActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                putExtra("SHOW_CYCLE_COMPLETE_DIALOG", true)
-                putExtra("MACHINE_ID", currentMachineId)
-                putExtra("MACHINE_NAME", machineName)
-            }
-            val pendingIntent = PendingIntent.getActivity(
-                this, currentMachineId.hashCode(), intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            val notification = NotificationCompat.Builder(this, "${CHANNEL_ID}_alert")
-                .setContentTitle("🧺 Laundry Done!")
-                .setContentText("$machineName - Your washing cycle is complete!")
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setFullScreenIntent(pendingIntent, true)
-                .setAutoCancel(true)
-                .build()
-
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            currentAlertNotificationId++
-            manager.notify(NOTIFICATION_ID + 1, notification)
-        } else {
-            Log.d(
-                "WashingMonitor",
-                "Full-screen notification suppressed on ${ForegroundTracker.currentActivity}"
-            )
-        }
-    }
-
-    private fun updateFirebaseFinished() {
-        database.child("washingMachines").child(currentMachineId).updateChildren(
-            mapOf(
-                "status" to "finished",
-                "intensity" to 0,
-                "lastUpdate" to System.currentTimeMillis()
-            )
-        )
-        database.child("notifications").push().setValue(
-            mapOf(
-                "title" to "Laundry Done!",
-                "message" to "Your washing cycle is complete!",
-                "timestamp" to System.currentTimeMillis(),
-                "read" to false
-            )
-        )
-    }
-
-    private fun updateNotification() {
-        // Keep for compatibility, but we use updateNotificationForMachine now
-        updateNotificationForMachine(currentMachineId)
-    }
-
+    // ========== CREATE NOTIFICATION ==========
     private fun createNotification(contentText: String = "Monitoring..."): Notification {
         val intent = Intent(this, WashingMachineActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -707,6 +641,7 @@ class WashingMonitorService : Service() {
             .build()
     }
 
+    // ========== CREATE NOTIFICATION CHANNEL ==========
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
@@ -735,18 +670,13 @@ class WashingMonitorService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        stopForeground(true)
-        stopTimer()
+        Log.d("WashingMonitor", "onDestroy called")
+        performFullCleanup()
+        firebaseListener?.let { database.child("washingMachines").removeEventListener(it) }
         handler.removeCallbacksAndMessages(null)
-
-        // Clear multi-machine timers
-        machineTimers.clear()
-
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.cancel(NOTIFICATION_ID)
-        manager.cancel(NOTIFICATION_ID + 1)
-
-        Log.d("WashingMonitor", "Service destroyed for machine $currentMachineId")
+        stopForeground(true)
+        super.onDestroy()
+        Log.d("WashingMonitor", "Service destroyed completely")
     }
 
     fun forceStopService(context: Context) {
@@ -762,15 +692,5 @@ class WashingMonitorService : Service() {
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.cancelAll()
-    }
-
-    private fun stopTimer() {
-        if (timerRunning) {
-            timerRunning = false
-            isTimerRunning = false
-            timerRunnable?.let { handler.removeCallbacks(it) }
-            timerRunnable = null
-            updateNotificationForMachine(currentMachineId)
-        }
     }
 }
