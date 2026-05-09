@@ -12,13 +12,13 @@ class DialogActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.dialog_cycle_complete)
 
-        // Make the activity full screen and transparent
+
         window?.setLayout(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT
         )
 
-        // Make the background transparent
+
         window?.setBackgroundDrawableResource(android.R.color.transparent)
 
         val tvTitle = findViewById<TextView>(R.id.tvDialogTitle)
@@ -34,7 +34,6 @@ class DialogActivity : Activity() {
     }
 
     override fun onBackPressed() {
-        // Do nothing, user must click OK
-        // This prevents dismissing the dialog with back button
+
     }
 }

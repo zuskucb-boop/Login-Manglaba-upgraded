@@ -23,10 +23,10 @@ class LoginActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_login)
 
-        // Initialize SharedPreferences
+
         sharedPref = getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
 
-        // Initialize Firebase with your database URL
+
         database = FirebaseDatabase.getInstance("https://manglaba-16795-default-rtdb.asia-southeast1.firebasedatabase.app/").reference
 
         val etEmail = findViewById<EditText>(R.id.etEmail)
@@ -36,7 +36,7 @@ class LoginActivity : AppCompatActivity() {
         val tvBack = findViewById<TextView>(R.id.tvBack)
         val tvSignUp = findViewById<TextView>(R.id.tvSignUp)
 
-        // Auto-fill email if previously saved (optional)
+
         val savedEmail = sharedPref.getString("USER_EMAIL", "")
         if (!savedEmail.isNullOrEmpty()) {
             etEmail.setText(savedEmail)
@@ -56,32 +56,32 @@ class LoginActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            // Show loading
+
             btnLogin.isEnabled = false
             btnLogin.text = "Checking..."
 
-            // Check if user exists in database
+
             checkUserCredentials(email, password) { isValid ->
                 btnLogin.isEnabled = true
                 btnLogin.text = "Login"
 
                 if (isValid) {
-                    // Save user email to SharedPreferences
+
                     sharedPref.edit().putString("USER_EMAIL", email).apply()
 
                     WashingMonitorService.isUserLoggedIn = true
 
-                    // Login successful
+
                     Toast.makeText(this, "Login Successful!", Toast.LENGTH_SHORT).show()
 
-                    // Save login record
+
                     val loginData = hashMapOf(
                         "email" to email,
                         "loginTime" to System.currentTimeMillis().toString()
                     )
                     database.child("logins").push().setValue(loginData)
 
-                    // Go to HomeActivity
+
                     val intent = Intent(this, HomeActivity::class.java)
                     intent.putExtra("USERNAME", email)
                     startActivity(intent)
@@ -110,10 +110,10 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun checkUserCredentials(email: String, password: String, callback: (Boolean) -> Unit) {
-        // Query Firebase for user with matching email
+
         val usersRef = database.child("users")
 
-        // Search for user by email
+
         usersRef.orderByChild("email").equalTo(email)
             .addListenerForSingleValueEvent(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {

@@ -23,7 +23,7 @@ class HomeActivity : AppCompatActivity() {
         sharedPref = getSharedPreferences("MyAppPrefs", Context.MODE_PRIVATE)
         userEmail = sharedPref.getString("USER_EMAIL", "") ?: ""
 
-        // Also get from intent if available (for fresh login)
+
         val intentEmail = intent.getStringExtra("USERNAME")
         if (intentEmail != null && intentEmail.isNotEmpty()) {
             userEmail = intentEmail
@@ -62,12 +62,12 @@ class HomeActivity : AppCompatActivity() {
             WashingMonitorService.isUserLoggedIn = false
             WashingMonitorService.dialogShownForCurrentCycle = false
 
-            // Stop service with cleanup
+            
             val stopIntent = Intent(this, WashingMonitorService::class.java)
             stopIntent.action = "ACTION_STOP_SERVICE"
             stopService(stopIntent)
 
-            // Reset Firebase
+
             FirebaseDatabase.getInstance("https://manglaba-16795-default-rtdb.asia-southeast1.firebasedatabase.app/")
                 .reference.child("washingMachines").child(WashingMonitorService.currentMachineId)
                 .updateChildren(mapOf(
@@ -123,7 +123,7 @@ class HomeActivity : AppCompatActivity() {
             "timer" to 120,
             "lastUpdate" to System.currentTimeMillis()
         )
-        // Fix: "washingMachine" -> "washingMachines"
+
         database.child("washingMachines").child(WashingMonitorService.currentMachineId)
             .updateChildren(updates)
     }

@@ -7,7 +7,7 @@
     android:background="#4E73B8"
     tools:context=".MainActivity">
 
-    <!-- Header -->
+
     <TextView
         android:id="@+id/tvHomeTitle"
         android:layout_width="wrap_content"
@@ -30,7 +30,7 @@
         android:layout_centerHorizontal="true"
         android:layout_marginTop="10dp"/>
 
-    <!-- Main Content Card -->
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

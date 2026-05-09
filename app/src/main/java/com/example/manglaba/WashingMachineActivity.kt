@@ -43,13 +43,13 @@ class WashingMachineActivity : AppCompatActivity() {
     private var totalTimerSeconds = 120
     private var uiRunnable: Runnable? = null
 
-    // Machine ID and Name
+
     private lateinit var machineId: String
     private lateinit var machineName: String
     private lateinit var userEmail: String
     private lateinit var database: DatabaseReference
 
-    // Broadcast receiver for cycle complete
+
     private val cycleCompleteReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == WashingMonitorService.ACTION_CYCLE_COMPLETE) {
@@ -64,7 +64,7 @@ class WashingMachineActivity : AppCompatActivity() {
         }
     }
 
-    // Broadcast receiver for machine data updates
+
     private val machineDataReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == WashingMonitorService.ACTION_MACHINE_DATA_UPDATED) {
@@ -81,38 +81,38 @@ class WashingMachineActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_washing_machine)
 
-        // Get Machine ID and Name from Intent
+
         machineId = intent.getStringExtra("MACHINE_ID") ?: "machine_001"
         machineName = intent.getStringExtra("MACHINE_NAME") ?: "Washing Machine"
 
-        // ===== CRITICAL: Set the service's current machine ID =====
+
         WashingMonitorService.currentMachineId = machineId
         Log.d("WashingMachine", "Service currentMachineId set to: ${WashingMonitorService.currentMachineId}")
-        // =========================================================
 
-        // Get user email from SharedPreferences
+
+
         val sharedPref = getSharedPreferences("MyAppPrefs", MODE_PRIVATE)
         userEmail = sharedPref.getString("USER_EMAIL", "") ?: ""
 
-        // Set title
+
         supportActionBar?.title = machineName
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
         Log.d("WashingMachine", "Monitoring machine: $machineName ($machineId)")
 
-        // Initialize Firebase
+
         val firebaseUrl = "https://manglaba-16795-default-rtdb.asia-southeast1.firebasedatabase.app/"
         database = FirebaseDatabase.getInstance(firebaseUrl).reference
 
-        // Start service
+
         startService(Intent(this, WashingMonitorService::class.java))
 
-        // Show dialog if opened from notification
+
         if (intent.getBooleanExtra("SHOW_CYCLE_COMPLETE_DIALOG", false)) {
             showFullScreenAlert()
         }
 
-        // Request permissions
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
@@ -123,7 +123,7 @@ class WashingMachineActivity : AppCompatActivity() {
         requestNotificationPermission()
         requestBatteryOptimizationPermission()
 
-        // Initialize views
+
         tvStatus = findViewById(R.id.tvStatus)
         tvVibration = findViewById(R.id.tvVibration)
         tvTimer = findViewById(R.id.tvTimer)
@@ -132,7 +132,7 @@ class WashingMachineActivity : AppCompatActivity() {
         btnReset = findViewById(R.id.btnReset)
         cardStatus = findViewById(R.id.cardStatus)
 
-        // Register broadcast receivers
+
         LocalBroadcastManager.getInstance(this).registerReceiver(
             cycleCompleteReceiver,
             IntentFilter(WashingMonitorService.ACTION_CYCLE_COMPLETE)
@@ -142,10 +142,10 @@ class WashingMachineActivity : AppCompatActivity() {
             IntentFilter(WashingMonitorService.ACTION_MACHINE_DATA_UPDATED)
         )
 
-        // Initial UI update from maps
+
         updateUIFromMaps()
 
-        // Button listeners
+
         btnSetTimer.setOnClickListener { showTimerPickerDialog() }
         btnRefresh.setOnClickListener {
             updateUIFromMaps()
@@ -159,7 +159,7 @@ class WashingMachineActivity : AppCompatActivity() {
     }
 
     private fun updateUIFromMaps() {
-        // READ FROM MAPS using this machine's ID (data comes from ESP32)
+
         val status = WashingMonitorService.machineStatusMap[machineId] ?: "idle"
         val vibration = WashingMonitorService.machineVibrationMap[machineId] ?: "⚪ NO VIBRATION"
         val timerValue = WashingMonitorService.machineTimerMap[machineId] ?: 120
@@ -200,14 +200,14 @@ class WashingMachineActivity : AppCompatActivity() {
     }
 
     private fun resetMachine() {
-        // Send intent to service to stop timer for this machine
+
         val intent = Intent(this, WashingMonitorService::class.java).apply {
             action = "ACTION_RESET_MACHINE"
             putExtra("MACHINE_ID", machineId)
         }
         startService(intent)
 
-        // Immediately update local UI
+
         WashingMonitorService.machineStatusMap[machineId] = "idle"
         WashingMonitorService.machineTimerMap[machineId] = 120
         updateUIFromMaps()
@@ -310,11 +310,11 @@ class WashingMachineActivity : AppCompatActivity() {
             val minutes = numberPicker.value
             totalTimerSeconds = minutes * 60
 
-            // Save timer for THIS machine in Firebase
+
             database.child("washingMachines").child(machineId).child("timer").setValue(totalTimerSeconds)
                 .addOnSuccessListener {
                     Log.d("WashingMachine", "Timer saved: $totalTimerSeconds seconds for $machineName")
-                    // Tell service to update timer for this machine
+
                     val intent = Intent(this, WashingMonitorService::class.java).apply {
                         action = "ACTION_SET_TIMER"
                         putExtra("TIMER_SECONDS", totalTimerSeconds)

@@ -31,7 +31,7 @@
         android:layout_centerHorizontal="true"
         android:layout_marginTop="80dp"/>
 
-    <!-- White Card -->
+
     <LinearLayout
         android:id="@+id/registerCard"
         android:layout_width="320dp"

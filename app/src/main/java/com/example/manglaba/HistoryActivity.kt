@@ -3,9 +3,17 @@ package com.example.manglaba
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
-import android.widget.*
+import android.widget.BaseAdapter
+import android.widget.ListView
+import android.widget.ProgressBar
+import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.google.firebase.database.*
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 
 class HistoryActivity : AppCompatActivity() {
 
@@ -23,14 +31,14 @@ class HistoryActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_history)
 
-        // Initialize views
+
         listViewHistory = findViewById(R.id.listViewHistory)
         tvTotalCycles = findViewById(R.id.tvTotalCycles)
         tvLastCycle = findViewById(R.id.tvLastCycle)
         tvEmpty = findViewById(R.id.tvEmpty)
         progressBar = findViewById(R.id.progressBar)
 
-        // Setup toolbar back button
+
         val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
@@ -39,21 +47,21 @@ class HistoryActivity : AppCompatActivity() {
             finish()
         }
 
-        // Initialize Firebase
+
         database = FirebaseDatabase.getInstance("https://manglaba-16795-default-rtdb.asia-southeast1.firebasedatabase.app/").reference
 
-        // Setup adapter
+
         adapter = HistoryAdapter(historyList)
         listViewHistory.adapter = adapter
 
-        // Load history
+
         loadHistory()
     }
 
     private fun loadHistory() {
         progressBar.visibility = View.VISIBLE
 
-        // Get all notifications (completed cycles)
+
         database.child("notifications")
             .orderByChild("timestamp")
             .addListenerForSingleValueEvent(object : ValueEventListener {
@@ -69,7 +77,7 @@ class HistoryActivity : AppCompatActivity() {
                         val timestamp = notificationSnapshot.child("timestamp").getValue(Long::class.java) ?: 0
                         val read = notificationSnapshot.child("read").getValue(Boolean::class.java) ?: false
 
-                        // Only show "Laundry Done!" notifications
+
                         if (title == "Laundry Done!" || message.contains("cycle is complete")) {
                             count++
                             if (timestamp > lastTime) {
@@ -87,10 +95,10 @@ class HistoryActivity : AppCompatActivity() {
                         }
                     }
 
-                    // Sort by timestamp (newest first)
+
                     historyList.sortByDescending { it.timestamp }
 
-                    // Update statistics
+
                     tvTotalCycles.text = count.toString()
                     if (lastTime > 0) {
                         tvLastCycle.text = formatDateTime(lastTime)
@@ -98,7 +106,7 @@ class HistoryActivity : AppCompatActivity() {
                         tvLastCycle.text = "No cycles yet"
                     }
 
-                    // Show empty state if no history
+
                     if (historyList.isEmpty()) {
                         tvEmpty.visibility = View.VISIBLE
                         listViewHistory.visibility = View.GONE
@@ -124,7 +132,7 @@ class HistoryActivity : AppCompatActivity() {
         return format.format(date)
     }
 
-    // Data class for history items
+
     data class HistoryItem(
         val id: String,
         val title: String,
@@ -133,7 +141,7 @@ class HistoryActivity : AppCompatActivity() {
         val read: Boolean
     )
 
-    // Adapter for ListView
+
     inner class HistoryAdapter(private val items: List<HistoryItem>) : BaseAdapter() {
 
         override fun getCount(): Int = items.size
@@ -143,12 +151,12 @@ class HistoryActivity : AppCompatActivity() {
         override fun getItemId(position: Int): Long = position.toLong()
 
         override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
-            // Create or reuse view
+
             val view: View
             val viewHolder: ViewHolder
 
             if (convertView == null) {
-                // Inflate new view
+
                 view = layoutInflater.inflate(R.layout.list_item_history, parent, false)
                 viewHolder = ViewHolder()
                 viewHolder.tvCycleNumber = view.findViewById(R.id.tvCycleNumber)
@@ -157,15 +165,15 @@ class HistoryActivity : AppCompatActivity() {
                 viewHolder.tvStatus = view.findViewById(R.id.tvStatus)
                 view.tag = viewHolder
             } else {
-                // Reuse existing view
+
                 view = convertView
                 viewHolder = view.tag as ViewHolder
             }
 
-            // Get the item
+
             val item = items[position]
 
-            // Set data
+
             viewHolder.tvCycleNumber.text = "Cycle #${items.size - position}"
             viewHolder.tvDateTime.text = formatDateTime(item.timestamp)
             viewHolder.tvDuration.text = "Completed"

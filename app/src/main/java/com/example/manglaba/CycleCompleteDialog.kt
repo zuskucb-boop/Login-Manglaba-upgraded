@@ -14,13 +14,13 @@ class CycleCompleteDialog(context: Context) : Dialog(context, android.R.style.Th
         super.onCreate(savedInstanceState)
         setContentView(R.layout.dialog_cycle_complete)
 
-        // Make dialog full screen
+
         window?.setLayout(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         )
 
-        // Set window flags to appear over other apps
+
         window?.setFlags(
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR or
@@ -30,7 +30,7 @@ class CycleCompleteDialog(context: Context) : Dialog(context, android.R.style.Th
                     WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS
         )
 
-        // Set the dialog to be cancelable only by button click
+
         setCancelable(false)
         setCanceledOnTouchOutside(false)
 

@@ -28,7 +28,7 @@ class MachineListActivity : AppCompatActivity() {
     private lateinit var adapter: MachineAdapter
     private var userEmail: String = ""
 
-    // Real-time listener references for each machine
+
     private val machineStatusListeners = mutableMapOf<String, ValueEventListener>()
     private val machineVibrationListeners = mutableMapOf<String, ValueEventListener>()
     private var machinesListener: ValueEventListener? = null
@@ -38,7 +38,7 @@ class MachineListActivity : AppCompatActivity() {
     private var lastUpdateTime = 0L
     private val UPDATE_THROTTLE_MS = 50L
 
-    // Track status changes
+
     private val pendingStatusUpdates = mutableMapOf<String, String>()
     private var forceRefreshScheduled = false
 

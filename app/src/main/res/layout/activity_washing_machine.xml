@@ -16,7 +16,7 @@
         android:textStyle="bold"
         android:layout_marginBottom="30dp"/>
 
-    <!-- Card 1: Machine Status -->
+
     <androidx.cardview.widget.CardView
         android:id="@+id/cardStatus"
         android:layout_width="match_parent"
@@ -52,7 +52,7 @@
 
     </androidx.cardview.widget.CardView>
 
-    <!-- Card 2: Vibration Level -->
+
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -87,7 +87,7 @@
 
     </androidx.cardview.widget.CardView>
 
-    <!-- Card 3: Timer -->
+
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

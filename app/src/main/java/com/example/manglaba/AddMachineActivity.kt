@@ -23,8 +23,7 @@ class AddMachineActivity : AppCompatActivity() {
         btnAddMachine = findViewById(R.id.btnAddMachine)
         btnCancel = findViewById(R.id.btnCancel)
 
-        // Hide or remove the MAC address field from your XML layout
-        // Or just don't use it
+
 
         val userEmail = intent.getStringExtra("USER_EMAIL") ?: ""
 

@@ -15,7 +15,7 @@ class ResetPasswordActivity : AppCompatActivity() {
         val etConfirmPassword = findViewById<EditText>(R.id.etConfirmPassword)
         val btnReset = findViewById<Button>(R.id.btnReset)
 
-        // Get token from the link that opened this activity
+
         val token = intent.getStringExtra("token") ?: ""
 
         btnReset.setOnClickListener {
@@ -33,10 +33,10 @@ class ResetPasswordActivity : AppCompatActivity() {
                     Toast.makeText(this, "Passwords don't match", Toast.LENGTH_SHORT).show()
                 }
                 else -> {
-                    // In a real app: send new password + token to backend
+
                     Toast.makeText(this, "Password updated successfully!", Toast.LENGTH_LONG).show()
 
-                    // Go back to login
+
                     finish()
                 }
             }

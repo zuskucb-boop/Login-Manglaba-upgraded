@@ -7,7 +7,11 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.google.firebase.database.*
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 
 class ProfileActivity : AppCompatActivity() {
 
@@ -27,7 +31,7 @@ class ProfileActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_profile)
 
-        // Initialize views
+
         tvUserName = findViewById(R.id.tvUserName)
         etFirstName = findViewById(R.id.etFirstName)
         etLastName = findViewById(R.id.etLastName)
@@ -36,37 +40,37 @@ class ProfileActivity : AppCompatActivity() {
         btnChangePassword = findViewById(R.id.btnChangePassword)
         btnBack = findViewById(R.id.btnBack)
 
-        // Get user email from intent
+
         val userEmail = intent.getStringExtra("USER_EMAIL") ?: ""
         currentEmail = userEmail
 
-        // Initialize Firebase with correct URL
+
         val firebaseUrl = "https://manglaba-16795-default-rtdb.asia-southeast1.firebasedatabase.app/"
         database = FirebaseDatabase.getInstance(firebaseUrl).reference
 
-        // Load user profile
+
         loadUserProfile(userEmail)
 
-        // Save button click
+
         btnSave.setOnClickListener {
             saveUserProfile()
         }
 
-        // Change Password button click
+
         btnChangePassword.setOnClickListener {
             val intent = Intent(this, ChangePasswordActivity::class.java)
             intent.putExtra("USER_EMAIL", currentEmail)
             startActivity(intent)
         }
 
-        // Back button click
+
         btnBack.setOnClickListener {
             finish()
         }
     }
 
     private fun loadUserProfile(email: String) {
-        // Search for user by email
+
         database.child("users").orderByChild("email").equalTo(email)
             .addListenerForSingleValueEvent(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
@@ -112,7 +116,7 @@ class ProfileActivity : AppCompatActivity() {
             return
         }
 
-        // Update user profile in Firebase
+
         val updates = mapOf<String, Any>(
             "firstName" to firstName,
             "lastName" to lastName,

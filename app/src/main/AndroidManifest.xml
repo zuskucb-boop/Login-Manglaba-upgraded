@@ -29,7 +29,7 @@
             android:foregroundServiceType="dataSync" />
 
 
-        <!-- Launcher Activity (First screen when app opens) -->
+
         <activity
             android:name=".LaundryReadyActivity"
             android:exported="true">
