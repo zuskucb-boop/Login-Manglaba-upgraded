@@ -405,9 +405,15 @@ class WashingMonitorService : Service() {
                 Log.d("WashingMonitor", "Machine $machineId: Timer set to 00:00 (vibration detected)")
             }
             "stopped" -> {
+                // Only respond to "stopped" if the machine was RUNNING before
+                if (!timerData.machineRunning && status == "stopped") {
+                    Log.d("WashingMonitor", "Machine $machineId: Ignoring stopped - wasn't running")
+                    return
+                }
+
                 timerData.machineRunning = true
                 if (!timerData.timerRunning && timerData.vibrationValue == 0) {
-                    Log.d("WashingMonitor", "Machine $machineId: STOPPED - Starting independent timer")
+                    Log.d("WashingMonitor", "Machine $machineId: STOPPED - Starting timer")
                     startMachineTimer(machineId, timerData, timerSeconds)
                 } else if (timerData.vibrationValue == 1) {
                     if (timerData.timerRunning) {
@@ -417,7 +423,6 @@ class WashingMonitorService : Service() {
                     }
                     timerData.remainingSeconds = 0
                     machineTimerMap[machineId] = 0
-                    Log.d("WashingMonitor", "Machine $machineId: STOPPED but vibration detected - Timer 00:00")
                 }
             }
             "finished" -> {
@@ -489,6 +494,11 @@ class WashingMonitorService : Service() {
                         timerData.cycleCompleteNotified = true
                         database.child("washingMachines").child(machineId).child("status").setValue("finished")
                         machineStatusMap[machineId] = "finished"
+
+                        // ===== ADD HISTORY SAVING HERE =====
+                        saveCycleHistory(machineId)
+                        // ===================================
+
                         showAlertForMachine(machineId)
                     }
                     timerData.remainingSeconds = 0
@@ -514,12 +524,36 @@ class WashingMonitorService : Service() {
         LocalBroadcastManager.getInstance(this@WashingMonitorService).sendBroadcast(intent)
     }
 
+    private fun saveCycleHistory(machineId: String) {
+        val machineName = machineNameMap[machineId] ?: machineId
+
+        // Save to "notifications" to match what HistoryActivity reads
+        val historyData = mapOf(
+            "title" to "Laundry Done!",
+            "message" to "$machineName - Your washing cycle is complete!",
+            "timestamp" to System.currentTimeMillis(),
+            "read" to false
+        )
+
+        database.child("notifications").push().setValue(historyData)
+            .addOnSuccessListener {
+                Log.d("WashingMonitor", "✅ History saved to notifications for $machineName")
+            }
+            .addOnFailureListener { e ->
+                Log.e("WashingMonitor", "Failed to save history: ${e.message}")
+            }
+    }
+
     // ========== SHOW ALERT ==========
     private fun showAlertForMachine(machineId: String) {
         if (!isUserLoggedIn) {
             Log.d("WashingMonitor", "Alert blocked - user not logged in")
             return
+
+
         }
+        // Save history
+        saveCycleHistory(machineId)
 
         val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         if (vibrator.hasVibrator()) {
