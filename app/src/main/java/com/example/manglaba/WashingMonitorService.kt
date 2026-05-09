@@ -126,7 +126,6 @@ class WashingMonitorService : Service() {
         handler.removeCallbacksAndMessages(null)
         machineTimers.clear()
         machinesWithESP32.clear()
-
         resetCompanion()
         Log.d("WashingMonitor", "Multi-machine service created")
 
@@ -141,19 +140,22 @@ class WashingMonitorService : Service() {
             .onDisconnect()
             .setValue(false)
 
-        // Force reset to idle on fresh login
+        // ===== STEP 1: Force reset to idle FIRST =====
         database.child("washingMachines").child(currentMachineId)
             .updateChildren(mapOf(
                 "status" to "idle",
-                "appConnected" to true,
+                "appConnected" to false,  // Start with false
                 "intensity" to 0,
                 "timer" to 120,
                 "lastUpdate" to System.currentTimeMillis()
             ))
 
-        // Set app as connected
-        setAppConnected(true)
-        startHeartbeat()
+        // ===== STEP 2: Wait a moment for Firebase to update =====
+        handler.postDelayed({
+            // Now set app as connected - ESP32 will see idle status
+            setAppConnected(true)
+            startHeartbeat()
+        }, 1000)  // 1 second delay to ensure idle status is set first
 
         // Listen to ALL machines
         listenToAllMachines()
